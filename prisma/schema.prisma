@@ -1,0 +1,124 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  OFFICER
+  ADMIN
+
+  @@map("user_role")
+}
+
+enum TicketCategory {
+  MBG
+  INFRASTRUCTURE
+  GENERAL
+
+  @@map("ticket_category")
+}
+
+enum TicketStatus {
+  RECEIVED
+  VERIFIED
+  IN_PROGRESS
+  COMPLETED
+
+  @@map("ticket_status")
+}
+
+model Organization {
+  id        Int      @id @default(autoincrement())
+  name      String
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+  users     User[]
+
+  @@map("organization")
+}
+
+model User {
+  id              Int              @id @default(autoincrement())
+  name            String
+  passwordHash    String?          @map("password") @db.VarChar(255)
+  organizationId  Int?             @map("organization_id")
+  role            UserRole
+  createdAt       DateTime         @default(now()) @map("created_at")
+  updatedAt       DateTime         @updatedAt @map("updated_at")
+  organization    Organization?    @relation(fields: [organizationId], references: [id], onDelete: SetNull)
+  reportedTickets Ticket[]         @relation("TicketReporter")
+  replies         Reply[]
+  activities      TicketActivity[]
+
+  @@index([organizationId])
+  @@map("users")
+}
+
+model Ticket {
+  id          Int              @id @default(autoincrement())
+  publicId    String           @unique @map("public_id")
+  reporterId  Int?             @map("reporter_id")
+  title       String?
+  category    TicketCategory
+  description String           @db.Text
+  transcript  String?          @db.Text
+  speechUrl   String           @map("speech_url")
+  location    String?
+  status      TicketStatus     @default(RECEIVED)
+  createdAt   DateTime         @default(now()) @map("created_at")
+  updatedAt   DateTime         @updatedAt @map("updated_at")
+  reporter    User?            @relation("TicketReporter", fields: [reporterId], references: [id], onDelete: SetNull)
+  attachments Attachment[]
+  replies     Reply[]
+  activities  TicketActivity[]
+
+  @@index([reporterId])
+  @@index([createdAt])
+  @@index([status])
+  @@map("tickets")
+}
+
+model Attachment {
+  id            Int      @id @default(autoincrement())
+  ticketId      Int      @map("tickets_id")
+  attachmentUrl String   @map("attachment_url")
+  createdAt     DateTime @default(now()) @map("created_at")
+  ticket        Ticket   @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+
+  @@index([ticketId])
+  @@map("attachments")
+}
+
+model Reply {
+  id        Int      @id @default(autoincrement())
+  ticketId  Int      @map("tickets_id")
+  repliedBy Int      @map("replied_by")
+  replyText String   @map("reply_text") @db.Text
+  createdAt DateTime @default(now()) @map("created_at")
+  ticket    Ticket   @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  author    User     @relation(fields: [repliedBy], references: [id], onDelete: Restrict)
+
+  @@index([ticketId])
+  @@index([repliedBy])
+  @@map("replies")
+}
+
+model TicketActivity {
+  id          Int          @id @default(autoincrement())
+  ticketId    Int          @map("tickets_id")
+  actorId     Int?         @map("actor_id")
+  fromStatus  TicketStatus @map("from_status")
+  toStatus    TicketStatus @map("to_status")
+  description String?      @db.Text
+  createdAt   DateTime     @default(now()) @map("created_at")
+  ticket      Ticket       @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  actor       User?        @relation(fields: [actorId], references: [id], onDelete: SetNull)
+
+  @@index([ticketId])
+  @@index([actorId])
+  @@map("ticket_activities")
+}

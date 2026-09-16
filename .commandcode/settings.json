@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "Shell(npm:*)",
+      "Shell(node node_modules/@prisma/client/prisma init --datasource-provider postgresql)"
+    ],
+    "deny": [],
+    "defaultMode": "default"
+  }
+}
