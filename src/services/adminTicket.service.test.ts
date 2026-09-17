@@ -2,7 +2,6 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { config } from "../config";
 import { AdminTicketRepository } from "../repositories/adminTicket.repository";
-import { ReplyStatusClassifier } from "../repositories/replyStatus.repository";
 import { AdminTicketService } from "./adminTicket.service";
 import { StorageService } from "./storage.service";
 
@@ -11,8 +10,6 @@ test("creates a trimmed reply linked to the authenticated staff user", async () 
     ticketId: number;
     actorId: number;
     replyText: string;
-    currentStatus: "RECEIVED";
-    suggestedStatus: "IN_PROGRESS" | null;
     attachmentUrls: string[];
   } | undefined;
   const repository = {
@@ -23,55 +20,15 @@ test("creates a trimmed reply linked to the authenticated staff user", async () 
       return { replyText: input?.replyText };
     },
   } as unknown as AdminTicketRepository;
-  const classifier = {
-    classify: async () => "IN_PROGRESS",
-  } as ReplyStatusClassifier;
-
-  const service = new AdminTicketService(repository, classifier);
+  const service = new AdminTicketService(repository);
   await service.createReply("ga-test", { replyText: "  Sedang ditangani.  " }, 7);
 
   assert.deepEqual(createInput, {
     ticketId: 42,
     actorId: 7,
     replyText: "Sedang ditangani.",
-    currentStatus: "RECEIVED",
-    suggestedStatus: "IN_PROGRESS",
     attachmentUrls: [],
   });
-});
-
-test("keeps ticket status when AI finds no operational meaning", async () => {
-  let suggestedStatus: string | null | undefined;
-  const repository = {
-    findStaff: async () => ({ id: 7, name: "Petugas", role: "OFFICER" }),
-    findStatus: async () => ({ id: 42, publicId: "GA-TEST", title: "Test", status: "VERIFIED", updatedAt: new Date() }),
-    createReply: async (input: { suggestedStatus: string | null }) => {
-      suggestedStatus = input.suggestedStatus;
-      return { replyText: "Terima kasih." };
-    },
-  } as unknown as AdminTicketRepository;
-  const classifier = { classify: async () => null } as ReplyStatusClassifier;
-
-  await new AdminTicketService(repository, classifier).createReply("GA-TEST", { replyText: "Terima kasih." }, 7);
-
-  assert.equal(suggestedStatus, null);
-});
-
-test("never moves ticket status backward from an AI classification", async () => {
-  let suggestedStatus: string | null | undefined;
-  const repository = {
-    findStaff: async () => ({ id: 7, name: "Petugas", role: "OFFICER" }),
-    findStatus: async () => ({ id: 42, publicId: "GA-TEST", title: "Test", status: "COMPLETED", updatedAt: new Date() }),
-    createReply: async (input: { suggestedStatus: string | null }) => {
-      suggestedStatus = input.suggestedStatus;
-      return { replyText: "Laporan kami terima." };
-    },
-  } as unknown as AdminTicketRepository;
-  const classifier = { classify: async () => "VERIFIED" } as ReplyStatusClassifier;
-
-  await new AdminTicketService(repository, classifier).createReply("GA-TEST", { replyText: "Laporan kami terima." }, 7);
-
-  assert.equal(suggestedStatus, null);
 });
 
 test("lists admin tickets with mapped reply history", async () => {
@@ -142,10 +99,9 @@ test("uploads a new avatar and removes the previous managed avatar", async () =>
     save: async () => ({ key: "avatars/new.png", url: "https://api.test/media/avatars/new.png" }),
     remove: async (files: Array<{ key: string }>) => { removed.push(...files.map((file) => file.key)); },
   } as unknown as StorageService;
-  const classifier = { classify: async () => null } as ReplyStatusClassifier;
   const file = { mimetype: "image/png", buffer: Buffer.from("png"), size: 3 } as Express.Multer.File;
 
-  const result = await new AdminTicketService(repository, classifier, storage).updateAvatar(file, 7);
+  const result = await new AdminTicketService(repository, storage).updateAvatar(file, 7);
 
   assert.equal(result.avatarUrl, "https://api.test/media/avatars/new.png");
   assert.deepEqual(removed, [oldKey]);

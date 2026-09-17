@@ -121,59 +121,33 @@ export class AdminTicketRepository {
     ticketId: number;
     actorId: number;
     replyText: string;
-    currentStatus: TicketStatus;
-    suggestedStatus: TicketStatus | null;
     attachmentUrls: string[];
   }) {
-    return prisma.$transaction(async (transaction) => {
-      const reply = await transaction.reply.create({
-        data: {
-          ticketId: input.ticketId,
-          repliedBy: input.actorId,
-          replyText: input.replyText,
-          attachments: {
-            create: input.attachmentUrls.map((attachmentUrl) => ({ attachmentUrl })),
+    return prisma.reply.create({
+      data: {
+        ticketId: input.ticketId,
+        repliedBy: input.actorId,
+        replyText: input.replyText,
+        attachments: {
+          create: input.attachmentUrls.map((attachmentUrl) => ({ attachmentUrl })),
+        },
+      },
+      select: {
+        replyText: true,
+        createdAt: true,
+        author: {
+          select: {
+            name: true,
+            avatarUrl: true,
+            organization: { select: { name: true } },
           },
         },
-        select: {
-          replyText: true,
-          createdAt: true,
-          author: {
-            select: {
-              name: true,
-              avatarUrl: true,
-              organization: { select: { name: true } },
-            },
-          },
-          attachments: {
-            orderBy: { createdAt: "asc" },
-            select: { attachmentUrl: true, createdAt: true },
-          },
-          ticket: { select: { publicId: true } },
+        attachments: {
+          orderBy: { createdAt: "asc" },
+          select: { attachmentUrl: true, createdAt: true },
         },
-      });
-
-      let statusChange: { from: TicketStatus; to: TicketStatus } | null = null;
-      if (input.suggestedStatus) {
-        const updated = await transaction.ticket.updateMany({
-          where: { id: input.ticketId, status: input.currentStatus },
-          data: { status: input.suggestedStatus },
-        });
-        if (updated.count === 1) {
-          await transaction.ticketActivity.create({
-            data: {
-              ticketId: input.ticketId,
-              actorId: input.actorId,
-              fromStatus: input.currentStatus,
-              toStatus: input.suggestedStatus,
-              description: `Status laporan diperbarui otomatis oleh AI berdasarkan balasan petugas.`,
-            },
-          });
-          statusChange = { from: input.currentStatus, to: input.suggestedStatus };
-        }
-      }
-
-      return { ...reply, statusChange };
+        ticket: { select: { publicId: true } },
+      },
     });
   }
 

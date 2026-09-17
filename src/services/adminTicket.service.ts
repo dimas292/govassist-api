@@ -3,7 +3,6 @@ import { createTicketReplySchema } from "../models/adminReply.model";
 import { updateAdminProfileSchema } from "../models/adminProfile.model";
 import { canTransitionStatus, updateTicketStatusSchema } from "../models/adminStatus.model";
 import { AdminTicketRepository } from "../repositories/adminTicket.repository";
-import { ReplyStatusClassifier, ReplyStatusRepository } from "../repositories/replyStatus.repository";
 import { ApiError } from "../utils/ApiError";
 import { StorageService, StoredFile, storedFileFromMediaUrl } from "./storage.service";
 
@@ -17,7 +16,6 @@ const statusLabel: Record<TicketStatus, string> = {
 export class AdminTicketService {
   constructor(
     private readonly repository = new AdminTicketRepository(),
-    private readonly replyStatusClassifier: ReplyStatusClassifier = new ReplyStatusRepository(),
     private readonly storage = new StorageService(),
   ) {}
 
@@ -115,23 +113,6 @@ export class AdminTicketService {
     const ticket = await this.repository.findStatus(trackingId.trim().toUpperCase());
     if (!ticket) throw ApiError.notFound("Ticket tidak ditemukan");
 
-    let classifiedStatus: TicketStatus | null = null;
-    try {
-      classifiedStatus = await this.replyStatusClassifier.classify(parsed.data.replyText);
-    } catch (error) {
-      console.error("AI reply status classification failed:", error instanceof Error ? error.message : error);
-    }
-
-    const statusOrder: Record<TicketStatus, number> = {
-      RECEIVED: 0,
-      VERIFIED: 1,
-      IN_PROGRESS: 2,
-      COMPLETED: 3,
-    };
-    const suggestedStatus = classifiedStatus && statusOrder[classifiedStatus] > statusOrder[ticket.status]
-      ? classifiedStatus
-      : null;
-
     const storedAttachments: StoredFile[] = [];
     try {
       for (const attachment of attachments) {
@@ -141,8 +122,6 @@ export class AdminTicketService {
         ticketId: ticket.id,
         actorId: staff.id,
         replyText: parsed.data.replyText,
-        currentStatus: ticket.status,
-        suggestedStatus,
         attachmentUrls: storedAttachments.map((attachment) => attachment.url),
       });
     } catch (error) {

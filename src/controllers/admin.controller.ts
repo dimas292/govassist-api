@@ -80,7 +80,6 @@ export class AdminController {
         url: attachment.attachmentUrl,
         createdAt: attachment.createdAt,
       })),
-      statusChange: reply.statusChange,
     }, "Balasan ticket berhasil dikirim", 201));
   });
 }

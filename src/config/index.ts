@@ -73,6 +73,5 @@ export const config = {
     maxTokens: parseInt(process.env.GEMINI_MAX_TOKENS || "2048", 10),
     temperature: parseFloat(process.env.GEMINI_TEMPERATURE || "0.7"),
     timeoutMs: parseInt(process.env.GEMINI_TIMEOUT_MS || "30000", 10),
-    replyStatusTimeoutMs: parseInt(process.env.GEMINI_REPLY_STATUS_TIMEOUT_MS || "8000", 10),
   },
 } as const;
