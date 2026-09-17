@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "tsx watch src/server.ts",
     "build": "tsc",
-    "test": "tsx --test src/models/ticket.model.test.ts src/models/adminStatus.model.test.ts src/middleware/ticketUpload.test.ts",
+    "test": "tsx --test src/app.test.ts src/controllers/media.controller.test.ts src/models/ticket.model.test.ts src/models/adminStatus.model.test.ts src/models/adminReply.model.test.ts src/models/adminProfile.model.test.ts src/services/adminTicket.service.test.ts src/services/storage.service.test.ts src/repositories/reportAnalysis.repository.test.ts src/repositories/replyStatus.repository.test.ts src/middleware/ticketUpload.test.ts",
     "start": "node dist/server.js",
     "lint": "eslint src --ext .ts",
     "clean": "rm -rf dist",
@@ -20,11 +20,13 @@
   "author": "",
   "license": "MIT",
   "dependencies": {
+    "@aws-sdk/client-s3": "^3.1134.0",
     "@google/generative-ai": "^0.21.0",
     "@prisma/client": "^5.22.0",
     "cors": "^2.8.5",
     "dotenv": "^16.4.7",
     "express": "^4.21.2",
+    "express-rate-limit": "^8.7.0",
     "express-validator": "^7.2.1",
     "helmet": "^8.0.0",
     "morgan": "^1.10.0",
@@ -37,7 +39,9 @@
     "@types/morgan": "^1.9.10",
     "@types/multer": "^2.2.0",
     "@types/node": "^22.20.3",
+    "@types/supertest": "^7.2.1",
     "prisma": "^5.22.0",
+    "supertest": "^7.2.2",
     "tsx": "^4.23.13",
     "typescript": "^5.9.3"
   },

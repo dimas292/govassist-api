@@ -19,6 +19,12 @@ const cookieOptions = {
 };
 
 export class AdminController {
+  listTickets = asyncHandler(async (req: Request, res: Response) => {
+    const query = typeof req.query.query === "string" ? req.query.query : undefined;
+    const result = await tickets.list(query);
+    res.json(ApiResponse.success(result));
+  });
+
   login = asyncHandler(async (req: Request, res: Response) => {
     const username = typeof req.body?.username === "string" ? req.body.username.trim() : "";
     const password = typeof req.body?.password === "string" ? req.body.password : "";
@@ -35,6 +41,11 @@ export class AdminController {
     res.json(ApiResponse.success(staff));
   });
 
+  updateProfile = asyncHandler(async (req: Request, res: Response) => {
+    const staff = await tickets.updateProfile(req.body, res.locals.adminActorId as number);
+    res.json(ApiResponse.success(staff, "Profil admin berhasil diperbarui"));
+  });
+
   logout = asyncHandler(async (_req: Request, res: Response) => {
     res.clearCookie(ADMIN_SESSION_COOKIE, { ...cookieOptions, maxAge: undefined });
     res.json(ApiResponse.success(null, "Logout admin berhasil"));
@@ -44,5 +55,17 @@ export class AdminController {
     const trackingId = Array.isArray(req.params.trackingId) ? req.params.trackingId[0] : req.params.trackingId;
     const ticket = await tickets.updateStatus(trackingId, req.body, res.locals.adminActorId as number);
     res.json(ApiResponse.success(ticket, "Status ticket berhasil diperbarui"));
+  });
+
+  createTicketReply = asyncHandler(async (req: Request, res: Response) => {
+    const trackingId = Array.isArray(req.params.trackingId) ? req.params.trackingId[0] : req.params.trackingId;
+    const reply = await tickets.createReply(trackingId, req.body, res.locals.adminActorId as number);
+    res.status(201).json(ApiResponse.success({
+      ticketId: reply.ticket.publicId,
+      agency: reply.author.organization?.name || reply.author.name,
+      message: reply.replyText,
+      createdAt: reply.createdAt,
+      statusChange: reply.statusChange,
+    }, "Balasan ticket berhasil dikirim", 201));
   });
 }

@@ -23,24 +23,32 @@ const parseJson = (text: string): ReportAnalysis => {
   return reportAnalysisSchema.parse(JSON.parse(cleaned));
 };
 
-export class ReportAnalysisRepository {
-  async analyzeAudio(audio: Express.Multer.File): Promise<ReportAnalysis> {
-    const model = genAI.getGenerativeModel({
-      model: config.gemini.model,
-      generationConfig: {
-        maxOutputTokens: config.gemini.maxTokens,
-        temperature: 0.1,
-        responseMimeType: "application/json",
-      },
-    });
+export type ReportGenerator = (
+  audio: Express.Multer.File,
+  timeoutMs: number,
+) => Promise<string>;
 
-    const generate = async () => {
-      const result = await model.generateContent([
-        { text: REPORT_PROMPT },
-        { inlineData: { mimeType: audio.mimetype, data: audio.buffer.toString("base64") } },
-      ]);
-      return parseJson(result.response.text());
-    };
+const generateWithGemini: ReportGenerator = async (audio, timeoutMs) => {
+  const model = genAI.getGenerativeModel({
+    model: config.gemini.model,
+    generationConfig: {
+      maxOutputTokens: config.gemini.maxTokens,
+      temperature: 0.1,
+      responseMimeType: "application/json",
+    },
+  });
+  const result = await model.generateContent([
+    { text: REPORT_PROMPT },
+    { inlineData: { mimeType: audio.mimetype, data: audio.buffer.toString("base64") } },
+  ], { timeout: timeoutMs });
+  return result.response.text();
+};
+
+export class ReportAnalysisRepository {
+  constructor(private readonly generate: ReportGenerator = generateWithGemini) {}
+
+  async analyzeAudio(audio: Express.Multer.File): Promise<ReportAnalysis> {
+    const generate = async () => parseJson(await this.generate(audio, config.gemini.timeoutMs));
 
     try {
       return await generate();
@@ -48,7 +56,7 @@ export class ReportAnalysisRepository {
       try {
         return await generate();
       } catch {
-        throw firstError;
+        throw new Error("Gemini report analysis failed after retry", { cause: firstError });
       }
     }
   }
