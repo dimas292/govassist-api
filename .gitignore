@@ -6,3 +6,6 @@ uploads/
 .DS_Store
 coverage/
 *.md
+
+.vercel
+.env*

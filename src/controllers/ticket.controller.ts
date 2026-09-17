@@ -40,8 +40,13 @@ const publicDetail = (ticket: Awaited<ReturnType<TicketService["detail"]>>) => (
   })),
   replies: ticket.replies.map((reply) => ({
     agency: reply.author.organization?.name || reply.author.name,
+    avatarUrl: reply.author.avatarUrl,
     message: reply.replyText,
     createdAt: reply.createdAt,
+    attachments: reply.attachments.map((attachment) => ({
+      url: attachment.attachmentUrl,
+      createdAt: attachment.createdAt,
+    })),
   })),
 });
 

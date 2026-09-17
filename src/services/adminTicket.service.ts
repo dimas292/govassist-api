@@ -5,6 +5,7 @@ import { canTransitionStatus, updateTicketStatusSchema } from "../models/adminSt
 import { AdminTicketRepository } from "../repositories/adminTicket.repository";
 import { ReplyStatusClassifier, ReplyStatusRepository } from "../repositories/replyStatus.repository";
 import { ApiError } from "../utils/ApiError";
+import { StorageService, StoredFile, storedFileFromMediaUrl } from "./storage.service";
 
 const statusLabel: Record<TicketStatus, string> = {
   RECEIVED: "Diterima",
@@ -17,6 +18,7 @@ export class AdminTicketService {
   constructor(
     private readonly repository = new AdminTicketRepository(),
     private readonly replyStatusClassifier: ReplyStatusClassifier = new ReplyStatusRepository(),
+    private readonly storage = new StorageService(),
   ) {}
 
   async list(query?: string) {
@@ -31,8 +33,13 @@ export class AdminTicketService {
       createdAt: ticket.createdAt,
       replies: ticket.replies.map((reply) => ({
         agency: reply.author.organization?.name || reply.author.name,
+        avatarUrl: reply.author.avatarUrl,
         message: reply.replyText,
         createdAt: reply.createdAt,
+        attachments: reply.attachments.map((attachment) => ({
+          url: attachment.attachmentUrl,
+          createdAt: attachment.createdAt,
+        })),
       })),
     }));
   }
@@ -51,6 +58,23 @@ export class AdminTicketService {
     const staff = await this.repository.updateProfile({ actorId, ...parsed.data });
     if (!staff) throw ApiError.notFound("Akun admin tidak ditemukan");
     return staff;
+  }
+
+  async updateAvatar(file: Express.Multer.File | undefined, actorId: number) {
+    if (!file) throw ApiError.badRequest("Foto profil wajib dipilih");
+    const staff = await this.currentStaff(actorId);
+    let stored: StoredFile | null = null;
+    try {
+      stored = await this.storage.save(file, "avatars");
+      const updated = await this.repository.updateAvatar(actorId, stored.url);
+      const previous = storedFileFromMediaUrl(staff.avatarUrl);
+      if (previous) await this.storage.remove([previous]).catch(() => undefined);
+      return updated;
+    } catch (error) {
+      if (stored) await this.storage.remove([stored]);
+      if (error instanceof ApiError) throw error;
+      throw ApiError.internal("Foto profil gagal diperbarui");
+    }
   }
 
   async updateStatus(trackingId: string, payload: unknown, actorId: number) {
@@ -78,7 +102,12 @@ export class AdminTicketService {
     return updated;
   }
 
-  async createReply(trackingId: string, payload: unknown, actorId: number) {
+  async createReply(
+    trackingId: string,
+    payload: unknown,
+    actorId: number,
+    attachments: Express.Multer.File[] = [],
+  ) {
     const parsed = createTicketReplySchema.safeParse(payload);
     if (!parsed.success) throw ApiError.badRequest("Balasan ticket tidak valid", parsed.error.issues);
 
@@ -103,12 +132,23 @@ export class AdminTicketService {
       ? classifiedStatus
       : null;
 
-    return this.repository.createReply({
-      ticketId: ticket.id,
-      actorId: staff.id,
-      replyText: parsed.data.replyText,
-      currentStatus: ticket.status,
-      suggestedStatus,
-    });
+    const storedAttachments: StoredFile[] = [];
+    try {
+      for (const attachment of attachments) {
+        storedAttachments.push(await this.storage.save(attachment, "images"));
+      }
+      return await this.repository.createReply({
+        ticketId: ticket.id,
+        actorId: staff.id,
+        replyText: parsed.data.replyText,
+        currentStatus: ticket.status,
+        suggestedStatus,
+        attachmentUrls: storedAttachments.map((attachment) => attachment.url),
+      });
+    } catch (error) {
+      await this.storage.remove(storedAttachments);
+      if (error instanceof ApiError) throw error;
+      throw ApiError.internal("Balasan ticket gagal disimpan");
+    }
   }
 }

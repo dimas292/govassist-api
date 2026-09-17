@@ -46,6 +46,11 @@ export class AdminController {
     res.json(ApiResponse.success(staff, "Profil admin berhasil diperbarui"));
   });
 
+  updateAvatar = asyncHandler(async (req: Request, res: Response) => {
+    const staff = await tickets.updateAvatar(req.file, res.locals.adminActorId as number);
+    res.json(ApiResponse.success(staff, "Foto profil berhasil diperbarui"));
+  });
+
   logout = asyncHandler(async (_req: Request, res: Response) => {
     res.clearCookie(ADMIN_SESSION_COOKIE, { ...cookieOptions, maxAge: undefined });
     res.json(ApiResponse.success(null, "Logout admin berhasil"));
@@ -59,12 +64,22 @@ export class AdminController {
 
   createTicketReply = asyncHandler(async (req: Request, res: Response) => {
     const trackingId = Array.isArray(req.params.trackingId) ? req.params.trackingId[0] : req.params.trackingId;
-    const reply = await tickets.createReply(trackingId, req.body, res.locals.adminActorId as number);
+    const reply = await tickets.createReply(
+      trackingId,
+      req.body,
+      res.locals.adminActorId as number,
+      (req.files as Express.Multer.File[] | undefined) || [],
+    );
     res.status(201).json(ApiResponse.success({
       ticketId: reply.ticket.publicId,
       agency: reply.author.organization?.name || reply.author.name,
+      avatarUrl: reply.author.avatarUrl,
       message: reply.replyText,
       createdAt: reply.createdAt,
+      attachments: reply.attachments.map((attachment) => ({
+        url: attachment.attachmentUrl,
+        createdAt: attachment.createdAt,
+      })),
       statusChange: reply.statusChange,
     }, "Balasan ticket berhasil dikirim", 201));
   });

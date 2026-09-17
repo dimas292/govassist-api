@@ -1,8 +1,10 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { config } from "../config";
 import { AdminTicketRepository } from "../repositories/adminTicket.repository";
 import { ReplyStatusClassifier } from "../repositories/replyStatus.repository";
 import { AdminTicketService } from "./adminTicket.service";
+import { StorageService } from "./storage.service";
 
 test("creates a trimmed reply linked to the authenticated staff user", async () => {
   let createInput: {
@@ -11,6 +13,7 @@ test("creates a trimmed reply linked to the authenticated staff user", async () 
     replyText: string;
     currentStatus: "RECEIVED";
     suggestedStatus: "IN_PROGRESS" | null;
+    attachmentUrls: string[];
   } | undefined;
   const repository = {
     findStaff: async () => ({ id: 7, name: "Petugas", role: "OFFICER" }),
@@ -33,6 +36,7 @@ test("creates a trimmed reply linked to the authenticated staff user", async () 
     replyText: "Sedang ditangani.",
     currentStatus: "RECEIVED",
     suggestedStatus: "IN_PROGRESS",
+    attachmentUrls: [],
   });
 });
 
@@ -84,7 +88,8 @@ test("lists admin tickets with mapped reply history", async () => {
       replies: [{
         replyText: "Tim sedang menuju lokasi.",
         createdAt,
-        author: { name: "Petugas", organization: { name: "Dinas PU" } },
+        author: { name: "Petugas", avatarUrl: "https://media.test/avatar.png", organization: { name: "Dinas PU" } },
+        attachments: [{ attachmentUrl: "https://media.test/reply.png", createdAt }],
       }],
     }],
   } as unknown as AdminTicketRepository;
@@ -94,8 +99,10 @@ test("lists admin tickets with mapped reply history", async () => {
   assert.equal(result[0].title, "Jalan rusak di depan sekolah");
   assert.deepEqual(result[0].replies, [{
     agency: "Dinas PU",
+    avatarUrl: "https://media.test/avatar.png",
     message: "Tim sedang menuju lokasi.",
     createdAt,
+    attachments: [{ url: "https://media.test/reply.png", createdAt }],
   }]);
 });
 
@@ -116,4 +123,30 @@ test("updates the authenticated staff profile with trimmed fields", async () => 
 
   assert.deepEqual(updateInput, { actorId: 7, name: "Admin Baru", organizationName: "GovAssist Nasional" });
   assert.equal(result.name, "Admin Baru");
+});
+
+test("uploads a new avatar and removes the previous managed avatar", async () => {
+  const removed: string[] = [];
+  const oldKey = "avatars/123e4567-e89b-42d3-a456-426614174000.png";
+  const repository = {
+    findStaff: async () => ({
+      id: 7,
+      name: "Admin",
+      role: "ADMIN",
+      avatarUrl: `${config.publicBaseUrl}/media/${oldKey}`,
+      organization: null,
+    }),
+    updateAvatar: async (_actorId: number, avatarUrl: string) => ({ id: 7, avatarUrl }),
+  } as unknown as AdminTicketRepository;
+  const storage = {
+    save: async () => ({ key: "avatars/new.png", url: "https://api.test/media/avatars/new.png" }),
+    remove: async (files: Array<{ key: string }>) => { removed.push(...files.map((file) => file.key)); },
+  } as unknown as StorageService;
+  const classifier = { classify: async () => null } as ReplyStatusClassifier;
+  const file = { mimetype: "image/png", buffer: Buffer.from("png"), size: 3 } as Express.Multer.File;
+
+  const result = await new AdminTicketService(repository, classifier, storage).updateAvatar(file, 7);
+
+  assert.equal(result.avatarUrl, "https://api.test/media/avatars/new.png");
+  assert.deepEqual(removed, [oldKey]);
 });

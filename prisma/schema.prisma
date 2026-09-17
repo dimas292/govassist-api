@@ -47,6 +47,7 @@ model User {
   passwordHash    String?          @map("password") @db.VarChar(255)
   organizationId  Int?             @map("organization_id")
   role            UserRole
+  avatarUrl       String?          @map("avatar_url")
   createdAt       DateTime         @default(now()) @map("created_at")
   updatedAt       DateTime         @updatedAt @map("updated_at")
   organization    Organization?    @relation(fields: [organizationId], references: [id], onDelete: SetNull)
@@ -84,12 +85,15 @@ model Ticket {
 
 model Attachment {
   id            Int      @id @default(autoincrement())
-  ticketId      Int      @map("tickets_id")
+  ticketId      Int?     @map("tickets_id")
+  replyId       Int?     @map("reply_id")
   attachmentUrl String   @map("attachment_url")
   createdAt     DateTime @default(now()) @map("created_at")
-  ticket        Ticket   @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  ticket        Ticket?  @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  reply         Reply?   @relation(fields: [replyId], references: [id], onDelete: Cascade)
 
   @@index([ticketId])
+  @@index([replyId])
   @@map("attachments")
 }
 
@@ -101,6 +105,7 @@ model Reply {
   createdAt DateTime @default(now()) @map("created_at")
   ticket    Ticket   @relation(fields: [ticketId], references: [id], onDelete: Cascade)
   author    User     @relation(fields: [repliedBy], references: [id], onDelete: Restrict)
+  attachments Attachment[]
 
   @@index([ticketId])
   @@index([repliedBy])

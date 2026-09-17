@@ -7,7 +7,7 @@ export class MediaService {
   constructor(private readonly storage = new StorageService()) {}
 
   async read(folder: string, fileName: string) {
-    if (!(["audio", "images"] as string[]).includes(folder) || !fileNamePattern.test(fileName)) {
+    if (!(["audio", "images", "avatars"] as string[]).includes(folder) || !fileNamePattern.test(fileName)) {
       throw ApiError.notFound("Media tidak ditemukan");
     }
 

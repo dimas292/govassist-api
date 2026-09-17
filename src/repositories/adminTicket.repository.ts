@@ -33,8 +33,13 @@ export class AdminTicketRepository {
             author: {
               select: {
                 name: true,
+                avatarUrl: true,
                 organization: { select: { name: true } },
               },
+            },
+            attachments: {
+              orderBy: { createdAt: "asc" },
+              select: { attachmentUrl: true, createdAt: true },
             },
           },
         },
@@ -49,6 +54,7 @@ export class AdminTicketRepository {
         id: true,
         name: true,
         role: true,
+        avatarUrl: true,
         organization: { select: { id: true, name: true } },
       },
     });
@@ -83,9 +89,24 @@ export class AdminTicketRepository {
           id: true,
           name: true,
           role: true,
+          avatarUrl: true,
           organization: { select: { id: true, name: true } },
         },
       });
+    });
+  }
+
+  updateAvatar(actorId: number, avatarUrl: string) {
+    return prisma.user.update({
+      where: { id: actorId },
+      data: { avatarUrl },
+      select: {
+        id: true,
+        name: true,
+        role: true,
+        avatarUrl: true,
+        organization: { select: { id: true, name: true } },
+      },
     });
   }
 
@@ -102,6 +123,7 @@ export class AdminTicketRepository {
     replyText: string;
     currentStatus: TicketStatus;
     suggestedStatus: TicketStatus | null;
+    attachmentUrls: string[];
   }) {
     return prisma.$transaction(async (transaction) => {
       const reply = await transaction.reply.create({
@@ -109,6 +131,9 @@ export class AdminTicketRepository {
           ticketId: input.ticketId,
           repliedBy: input.actorId,
           replyText: input.replyText,
+          attachments: {
+            create: input.attachmentUrls.map((attachmentUrl) => ({ attachmentUrl })),
+          },
         },
         select: {
           replyText: true,
@@ -116,8 +141,13 @@ export class AdminTicketRepository {
           author: {
             select: {
               name: true,
+              avatarUrl: true,
               organization: { select: { name: true } },
             },
+          },
+          attachments: {
+            orderBy: { createdAt: "asc" },
+            select: { attachmentUrl: true, createdAt: true },
           },
           ticket: { select: { publicId: true } },
         },

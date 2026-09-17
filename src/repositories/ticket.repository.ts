@@ -10,7 +10,10 @@ const detailInclude = {
   },
   replies: {
     orderBy: { createdAt: "asc" as const },
-    include: { author: { include: { organization: true } } },
+    include: {
+      author: { include: { organization: true } },
+      attachments: { orderBy: { createdAt: "asc" as const } },
+    },
   },
 } satisfies Prisma.TicketInclude;
 

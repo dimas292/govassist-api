@@ -15,8 +15,10 @@ export type StoredMedia = {
   contentLength: number;
 };
 
+export type StorageFolder = "audio" | "images" | "avatars";
+
 export interface StorageAdapter {
-  save(file: Express.Multer.File, folder: "audio" | "images"): Promise<StoredFile>;
+  save(file: Express.Multer.File, folder: StorageFolder): Promise<StoredFile>;
   remove(files: StoredFile[]): Promise<void>;
   read(key: string): Promise<StoredMedia>;
 }
@@ -30,7 +32,7 @@ const extensions: Record<string, string> = {
   "image/png": ".png",
 };
 
-const createKey = (folder: "audio" | "images", mimetype: string) => {
+const createKey = (folder: StorageFolder, mimetype: string) => {
   const extension = extensions[mimetype];
   if (!extension) throw new Error(`Unsupported media type: ${mimetype}`);
   return `${folder}/${randomUUID()}${extension}`;
@@ -49,7 +51,7 @@ export class LocalStorageAdapter implements StorageAdapter {
     private readonly publicBaseUrl = config.publicBaseUrl,
   ) {}
 
-  async save(file: Express.Multer.File, folder: "audio" | "images"): Promise<StoredFile> {
+  async save(file: Express.Multer.File, folder: StorageFolder): Promise<StoredFile> {
     const key = createKey(folder, file.mimetype);
     const absolutePath = path.join(this.directory, key);
     await mkdir(path.dirname(absolutePath), { recursive: true });
@@ -108,7 +110,7 @@ export class S3StorageAdapter implements StorageAdapter {
     });
   }
 
-  async save(file: Express.Multer.File, folder: "audio" | "images"): Promise<StoredFile> {
+  async save(file: Express.Multer.File, folder: StorageFolder): Promise<StoredFile> {
     const key = createKey(folder, file.mimetype);
     await this.client.send(new PutObjectCommand({
       Bucket: this.bucket,
@@ -153,7 +155,7 @@ export class StorageService implements StorageAdapter {
       : new S3StorageAdapter());
   }
 
-  save(file: Express.Multer.File, folder: "audio" | "images") {
+  save(file: Express.Multer.File, folder: StorageFolder) {
     return this.adapter.save(file, folder);
   }
 
@@ -165,3 +167,20 @@ export class StorageService implements StorageAdapter {
     return this.adapter.read(key);
   }
 }
+
+export const storedFileFromMediaUrl = (url: string | null | undefined): StoredFile | null => {
+  if (!url) return null;
+  try {
+    const parsedUrl = new URL(url, config.publicBaseUrl);
+    if (parsedUrl.origin !== new URL(config.publicBaseUrl).origin) return null;
+    const pathname = parsedUrl.pathname;
+    const marker = "/media/";
+    const markerIndex = pathname.indexOf(marker);
+    if (markerIndex === -1) return null;
+    const key = decodeURIComponent(pathname.slice(markerIndex + marker.length));
+    const avatarKeyPattern = /^avatars\/[0-9a-f-]+\.(jpg|png)$/i;
+    return avatarKeyPattern.test(key) ? { key, url } : null;
+  } catch {
+    return null;
+  }
+};

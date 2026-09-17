@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "tsx watch src/server.ts",
     "build": "tsc",
-    "test": "tsx --test src/app.test.ts src/controllers/media.controller.test.ts src/models/ticket.model.test.ts src/models/adminStatus.model.test.ts src/models/adminReply.model.test.ts src/models/adminProfile.model.test.ts src/services/adminTicket.service.test.ts src/services/storage.service.test.ts src/repositories/reportAnalysis.repository.test.ts src/repositories/replyStatus.repository.test.ts src/middleware/ticketUpload.test.ts",
+    "test": "tsx --test src/app.test.ts src/controllers/media.controller.test.ts src/models/ticket.model.test.ts src/models/adminStatus.model.test.ts src/models/adminReply.model.test.ts src/models/adminProfile.model.test.ts src/services/adminTicket.service.test.ts src/services/media.service.test.ts src/services/storage.service.test.ts src/repositories/reportAnalysis.repository.test.ts src/repositories/replyStatus.repository.test.ts src/middleware/ticketUpload.test.ts",
     "start": "node dist/server.js",
     "lint": "eslint src --ext .ts",
     "clean": "rm -rf dist",
