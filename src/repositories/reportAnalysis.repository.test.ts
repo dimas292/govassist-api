@@ -1,7 +1,11 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { config } from "../config";
-import { ReportAnalysisRepository, ReportGenerator } from "./reportAnalysis.repository";
+import {
+  ReportAnalysisRepository,
+  ReportAnalysisUnavailableError,
+  ReportGenerator,
+} from "./reportAnalysis.repository";
 
 const audio = {
   mimetype: "audio/webm",
@@ -48,9 +52,6 @@ test("fails safely after two Gemini failures", async () => {
     throw new Error("provider secret response");
   };
 
-  await assert.rejects(
-    new ReportAnalysisRepository(generate).analyzeAudio(audio),
-    /Gemini report analysis failed after retry/,
-  );
+  await assert.rejects(new ReportAnalysisRepository(generate).analyzeAudio(audio), ReportAnalysisUnavailableError);
   assert.equal(attempts, 2);
 });

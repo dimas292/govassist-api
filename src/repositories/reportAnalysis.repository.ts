@@ -28,6 +28,13 @@ export type ReportGenerator = (
   timeoutMs: number,
 ) => Promise<string>;
 
+export class ReportAnalysisUnavailableError extends Error {
+  constructor(cause?: unknown) {
+    super("Report analysis service unavailable", { cause });
+    this.name = "ReportAnalysisUnavailableError";
+  }
+}
+
 const generateWithGemini: ReportGenerator = async (audio, timeoutMs) => {
   const model = genAI.getGenerativeModel({
     model: config.gemini.model,
@@ -56,7 +63,7 @@ export class ReportAnalysisRepository {
       try {
         return await generate();
       } catch {
-        throw new Error("Gemini report analysis failed after retry", { cause: firstError });
+        throw new ReportAnalysisUnavailableError(firstError);
       }
     }
   }

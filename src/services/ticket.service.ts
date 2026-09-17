@@ -1,7 +1,7 @@
 import { randomBytes } from "crypto";
 import { TicketStatus } from "@prisma/client";
 import { UploadedTicketFiles } from "../models/ticket.model";
-import { ReportAnalysisRepository } from "../repositories/reportAnalysis.repository";
+import { ReportAnalysisRepository, ReportAnalysisUnavailableError } from "../repositories/reportAnalysis.repository";
 import { TicketRepository } from "../repositories/ticket.repository";
 import { ApiError } from "../utils/ApiError";
 import { StorageService, StoredFile } from "./storage.service";
@@ -34,8 +34,12 @@ export class TicketService {
     } catch (error) {
       await this.storage.remove(stored);
       if (error instanceof ApiError) throw error;
-      const message = error instanceof Error ? error.message : "Failed to create ticket";
-      throw ApiError.internal(message);
+      if (error instanceof ReportAnalysisUnavailableError) {
+        throw ApiError.serviceUnavailable(
+          "Analisis suara sedang sibuk. Rekaman belum tersimpan; silakan coba lagi dalam beberapa saat.",
+        );
+      }
+      throw ApiError.internal("Laporan gagal dibuat");
     }
   }
 
