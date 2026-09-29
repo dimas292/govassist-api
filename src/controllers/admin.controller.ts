@@ -12,8 +12,8 @@ const tickets = new AdminTicketService();
 
 const cookieOptions = {
   httpOnly: true,
-  sameSite: "lax" as const,
-  secure: config.nodeEnv === "production",
+  sameSite: config.admin.cookieSameSite,
+  secure: config.admin.cookieSecure,
   maxAge: config.admin.sessionHours * 60 * 60 * 1000,
   path: "/api/admin",
 };

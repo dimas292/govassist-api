@@ -19,6 +19,11 @@ if (reportDecisionProvider !== "gemini" && reportDecisionProvider !== "openroute
   throw new Error("REPORT_DECISION_PROVIDER must be gemini or openrouter");
 }
 
+const adminCookieSameSite = process.env.ADMIN_COOKIE_SAME_SITE || "lax";
+if (adminCookieSameSite !== "lax" && adminCookieSameSite !== "strict" && adminCookieSameSite !== "none") {
+  throw new Error("ADMIN_COOKIE_SAME_SITE must be lax, strict, or none");
+}
+
 const parseList = (value: string) => value.split(",").map((item) => item.trim()).filter(Boolean);
 const parseBoolean = (value: string | undefined, fallback = false) =>
   value === undefined ? fallback : value.toLowerCase() === "true";
@@ -75,6 +80,8 @@ export const config = {
     sessionSecret: process.env.ADMIN_SESSION_SECRET || "",
     actorId: parseInt(process.env.ADMIN_ACTOR_ID || "0", 10),
     sessionHours: parseInt(process.env.ADMIN_SESSION_HOURS || "8", 10),
+    cookieSameSite: adminCookieSameSite as "lax" | "strict" | "none",
+    cookieSecure: adminCookieSameSite === "none" || parseBoolean(process.env.ADMIN_COOKIE_SECURE, nodeEnv === "production"),
   },
 
   gemini: {
