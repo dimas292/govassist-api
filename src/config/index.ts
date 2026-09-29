@@ -1,12 +1,22 @@
 import dotenv from "dotenv";
 import path from "path";
 
-dotenv.config();
+dotenv.config({ override: true });
 
 const nodeEnv = process.env.NODE_ENV || "development";
 const storageDriver = process.env.STORAGE_DRIVER || "local";
 if (storageDriver !== "local" && storageDriver !== "s3" && storageDriver !== "r2") {
   throw new Error("STORAGE_DRIVER must be local, s3, or r2");
+}
+
+const speechToTextProvider = process.env.SPEECH_TO_TEXT_PROVIDER || "whisper";
+if (speechToTextProvider !== "whisper") {
+  throw new Error("SPEECH_TO_TEXT_PROVIDER must be whisper");
+}
+
+const reportDecisionProvider = process.env.REPORT_DECISION_PROVIDER || "gemini";
+if (reportDecisionProvider !== "gemini" && reportDecisionProvider !== "openrouter") {
+  throw new Error("REPORT_DECISION_PROVIDER must be gemini or openrouter");
 }
 
 const parseList = (value: string) => value.split(",").map((item) => item.trim()).filter(Boolean);
@@ -73,5 +83,30 @@ export const config = {
     maxTokens: parseInt(process.env.GEMINI_MAX_TOKENS || "2048", 10),
     temperature: parseFloat(process.env.GEMINI_TEMPERATURE || "0.7"),
     timeoutMs: parseInt(process.env.GEMINI_TIMEOUT_MS || "30000", 10),
+  },
+
+  ai: {
+    speechToTextProvider,
+    reportDecisionProvider,
+    speechToText: {
+      whisper: {
+        endpointUrl: process.env.WHISPER_ENDPOINT_URL || "",
+        apiToken: process.env.WHISPER_API_TOKEN || "",
+        language: process.env.WHISPER_LANGUAGE || "id",
+        timeoutMs: parseInt(process.env.WHISPER_TIMEOUT_MS || "60000", 10),
+      },
+    },
+    reportDecision: {
+      maxTokens: parseInt(process.env.REPORT_DECISION_MAX_TOKENS || process.env.GEMINI_MAX_TOKENS || "2048", 10),
+      temperature: parseFloat(process.env.REPORT_DECISION_TEMPERATURE || "0.1"),
+      timeoutMs: parseInt(process.env.REPORT_DECISION_TIMEOUT_MS || process.env.GEMINI_TIMEOUT_MS || "30000", 10),
+    },
+    openRouter: {
+      apiKey: process.env.OPENROUTER_API_KEY || "",
+      model: process.env.OPENROUTER_MODEL || "",
+      baseUrl: process.env.OPENROUTER_BASE_URL || "https://openrouter.ai/api/v1",
+      siteUrl: process.env.OPENROUTER_SITE_URL || "",
+      appName: process.env.OPENROUTER_APP_NAME || "GovAssist",
+    },
   },
 } as const;
