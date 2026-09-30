@@ -10,8 +10,8 @@ if (storageDriver !== "local" && storageDriver !== "s3" && storageDriver !== "r2
 }
 
 const speechToTextProvider = process.env.SPEECH_TO_TEXT_PROVIDER || "whisper";
-if (speechToTextProvider !== "whisper") {
-  throw new Error("SPEECH_TO_TEXT_PROVIDER must be whisper");
+if (speechToTextProvider !== "whisper" && speechToTextProvider !== "groq") {
+  throw new Error("SPEECH_TO_TEXT_PROVIDER must be whisper or groq");
 }
 
 const reportDecisionProvider = process.env.REPORT_DECISION_PROVIDER || "gemini";
@@ -25,6 +25,7 @@ if (adminCookieSameSite !== "lax" && adminCookieSameSite !== "strict" && adminCo
 }
 
 const parseList = (value: string) => value.split(",").map((item) => item.trim()).filter(Boolean);
+const geminiApiKeys = parseList(process.env.GEMINI_API_KEY || "");
 const parseBoolean = (value: string | undefined, fallback = false) =>
   value === undefined ? fallback : value.toLowerCase() === "true";
 const parseTrustProxy = (value: string | undefined): boolean | number | string => {
@@ -85,8 +86,12 @@ export const config = {
   },
 
   gemini: {
-    apiKey: process.env.GEMINI_API_KEY || "",
+    apiKey: geminiApiKeys[0] ?? "",
+    apiKeys: geminiApiKeys,
     model: process.env.GEMINI_MODEL || "gemini-1.5-flash",
+    models: parseList(
+      process.env.GEMINI_MODELS || "gemini-3.5-flash-lite,gemini-3.1-flash-lite,gemini-3.6-flash",
+    ),
     maxTokens: parseInt(process.env.GEMINI_MAX_TOKENS || "2048", 10),
     temperature: parseFloat(process.env.GEMINI_TEMPERATURE || "0.7"),
     timeoutMs: parseInt(process.env.GEMINI_TIMEOUT_MS || "30000", 10),
@@ -101,6 +106,13 @@ export const config = {
         apiToken: process.env.WHISPER_API_TOKEN || "",
         language: process.env.WHISPER_LANGUAGE || "id",
         timeoutMs: parseInt(process.env.WHISPER_TIMEOUT_MS || "60000", 10),
+      },
+      groq: {
+        apiKey: process.env.GROQ_API_KEY || "",
+        model: process.env.GROQ_MODEL || "whisper-large-v3-turbo",
+        language: process.env.GROQ_LANGUAGE || "id",
+        baseUrl: process.env.GROQ_BASE_URL || "https://api.groq.com/openai/v1",
+        timeoutMs: parseInt(process.env.GROQ_TIMEOUT_MS || "60000", 10),
       },
     },
     reportDecision: {

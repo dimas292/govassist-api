@@ -1,4 +1,4 @@
-import { genAI } from "../config/gemini";
+import { GoogleGenerativeAI } from "@google/generative-ai";
 import { config } from "../config";
 import { createLogger, describeError as errorReason } from "../utils/logger";
 import {
@@ -163,29 +163,88 @@ const transcribeWithWhisper: SpeechToTextGenerator = async (audio, timeoutMs) =>
   });
 };
 
-const analyzeWithGemini: ReportDecisionGenerator = async (transcript, timeoutMs) => {
-  required(config.gemini.apiKey, "GEMINI_API_KEY");
-  const model = genAI.getGenerativeModel({
-    model: config.gemini.model,
-    generationConfig: {
-      maxOutputTokens: config.ai.reportDecision.maxTokens,
-      temperature: config.ai.reportDecision.temperature,
-      responseMimeType: "application/json",
-    },
+export const transcribeWithGroq: SpeechToTextGenerator = async (audio, timeoutMs) => {
+  required(config.ai.speechToText.groq.apiKey, "GROQ_API_KEY");
+  required(config.ai.speechToText.groq.model, "GROQ_MODEL");
+  return withTimeout(timeoutMs, async (signal) => {
+    const body = new FormData();
+    const file = new Blob([audio.buffer], { type: audio.mimetype });
+    body.append("file", file, audio.originalname || "report-audio");
+    body.append("model", config.ai.speechToText.groq.model);
+    body.append("language", config.ai.speechToText.groq.language);
+    body.append("response_format", "json");
+
+    log.debug("Sending audio to Groq speech-to-text provider", {
+      bytes: audio.size,
+      mimetype: audio.mimetype,
+      model: config.ai.speechToText.groq.model,
+      language: config.ai.speechToText.groq.language,
+      timeoutMs,
+    });
+
+    const endpointUrl = `${config.ai.speechToText.groq.baseUrl.replace(/\/$/, "")}/audio/transcriptions`;
+    const response = await fetch(endpointUrl, {
+      method: "POST",
+      signal,
+      headers: {
+        Authorization: `Bearer ${config.ai.speechToText.groq.apiKey}`,
+      },
+      body,
+    });
+
+    if (!response.ok) {
+      const detail = (await response.text().catch(() => "")).slice(0, 300);
+      log.error("Groq speech-to-text provider returned an error", {
+        status: response.status,
+        detail: detail || undefined,
+      });
+      throw new Error(`Groq speech-to-text provider failed with HTTP ${response.status}`);
+    }
+
+    return parseWhisperTranscript(response);
   });
-  log.debug("Requesting report decision", {
-    provider: "gemini",
-    model: config.gemini.model,
-    transcriptCharacters: transcript.length,
-    timeoutMs,
-  });
-  const result = await model.generateContent([
-    { text: DECISION_PROMPT },
-    { text: `Transcript:\n${transcript}` },
-  ], { timeout: timeoutMs });
-  const text = result.response.text();
-  if (!text.trim()) log.warn("Report decision provider returned an empty response", { provider: "gemini" });
-  return parseJson(text, reportDecisionSchema);
+};
+
+export const analyzeWithGemini: ReportDecisionGenerator = async (transcript, timeoutMs) => {
+  const apiKeys = config.gemini.apiKeys.length > 0 ? config.gemini.apiKeys : [config.gemini.apiKey].filter(Boolean);
+  required(apiKeys[0] ?? "", "GEMINI_API_KEY");
+  const models = config.gemini.models.length > 0 ? config.gemini.models : [config.gemini.model];
+  let lastError: unknown;
+  for (const apiKey of apiKeys) {
+    const client = new GoogleGenerativeAI(apiKey);
+    for (const modelName of models) {
+      try {
+        const model = client.getGenerativeModel({
+          model: modelName,
+          generationConfig: {
+            maxOutputTokens: config.ai.reportDecision.maxTokens,
+            temperature: config.ai.reportDecision.temperature,
+            responseMimeType: "application/json",
+          },
+        });
+        log.debug("Requesting report decision", {
+          provider: "gemini",
+          model: modelName,
+          transcriptCharacters: transcript.length,
+          timeoutMs,
+        });
+        const result = await model.generateContent([
+          { text: DECISION_PROMPT },
+          { text: `Transcript:\n${transcript}` },
+        ], { timeout: timeoutMs });
+        const text = result.response.text();
+        if (!text.trim()) log.warn("Report decision provider returned an empty response", { provider: "gemini", model: modelName });
+        return parseJson(text, reportDecisionSchema);
+      } catch (error) {
+        lastError = error;
+        log.warn("Gemini report decision attempt failed, trying next key/model", {
+          model: modelName,
+          reason: errorReason(error),
+        });
+      }
+    }
+  }
+  throw lastError;
 };
 
 const openRouterMessageContent = (body: unknown): string => {
@@ -263,8 +322,14 @@ const analyzeWithOpenRouter: ReportDecisionGenerator = async (transcript, timeou
 
 const speechToTextProvider = (): SpeechToTextGenerator => {
   if (config.ai.speechToTextProvider === "whisper") return transcribeWithWhisper;
+  if (config.ai.speechToTextProvider === "groq") return transcribeWithGroq;
   throw new Error("Unsupported speech-to-text provider");
 };
+
+const speechToTextTimeoutMs = (): number =>
+  config.ai.speechToTextProvider === "groq"
+    ? config.ai.speechToText.groq.timeoutMs
+    : config.ai.speechToText.whisper.timeoutMs;
 
 const reportDecisionProvider = (): ReportDecisionGenerator => {
   if (config.ai.reportDecisionProvider === "gemini") return analyzeWithGemini;
@@ -309,7 +374,7 @@ export class ReportAnalysisRepository {
     try {
       const transcribeStartedAt = Date.now();
       const transcription = await retryOnce(
-        () => this.transcribe(audio, config.ai.speechToText.whisper.timeoutMs),
+        () => this.transcribe(audio, speechToTextTimeoutMs()),
         `Speech-to-text (${speechProvider})`,
       );
       const transcript = transcription.transcript.trim();
